@@ -95,6 +95,13 @@ class PhotoBooth:
 
 		self.init_booth()
 
+	def set_screen_preview(self):
+		size = self.s_w, self.s_h
+		self.screen = pygame.display.set_mode(size)
+	def set_screen_image(self):
+		size = self.s_w, self.s_h
+		self.screen = pygame.display.set_mode(size)
+
 	def init_booth(self):
 		# Clear the screen to start
 		self.screen.fill((0, 255, 0))
@@ -138,8 +145,7 @@ class PhotoBooth:
 			)
 		)
  	def run(self):
- 		main_surface = pygame.display.get_surface()
- 		self.main_surface = main_surface
+ 		self.main_surface = pygame.display.get_surface()
 
  		### cache count down numbers
  		font_file = "%s/font.ttf" % os.path.dirname(os.path.realpath(__file__))
@@ -190,7 +196,7 @@ class PhotoBooth:
 				### centre the image
 				px = int((self.s_w - img.shape[0])/2.0)
 				py = int((self.s_h - img.shape[1])/2.0)
-				main_surface.blit(imgs, (px, py))
+				self.main_surface.blit(imgs, (px, py))
 				
 				update_screen = True
 
@@ -223,7 +229,9 @@ class PhotoBooth:
 
 			if count_down == 0 and (taken < to_take):
 				if taken == 0:
-					main_surface.fill((255,0,255))
+					self.set_screen_image()
+					self.main_surface.fill((255,0,255))
+
 
 				pygame.display.flip()
 				name, folder, size = self.snappy.take_photo()
@@ -245,7 +253,7 @@ class PhotoBooth:
 				i_x = taken % math.sqrt(to_take)
 				i_y = math.floor(taken/math.sqrt(to_take))
 
-				main_surface.blit(imgs, (i_x*t_w, p_y + i_y*t_h))
+				self.main_surface.blit(imgs, (i_x*t_w, p_y + i_y*t_h))
 				pygame.display.update(pygame.Rect(i_x*t_w, p_y + i_y*t_h, t_w, t_h))
 				taken += 1
 
@@ -261,8 +269,10 @@ class PhotoBooth:
 					### clear again
 					self.clear_button_events()
 
+					self.set_screen_preview()
+					
 					self.snappy.enable_preview()
-					main_surface.fill((0,255,0))
+					self.main_surface.fill((0,255,0))
 					pygame.display.flip()
 
 			if self.one_photo_button():
