@@ -9,6 +9,7 @@ import os
 import SuperBooth
 import math
 import numpy as np
+import datetime
 
 class Snappy(threading.Thread):
 	snap = None
@@ -22,7 +23,15 @@ class Snappy(threading.Thread):
 
 	preview_sem = None
 	def __init__(self):
-		self.snap = SuperBooth.PySnapper()
+		while True:
+			try:
+				self.snap = SuperBooth.PySnapper()
+			except:
+				print "failed to create object -- retrying"
+				time.sleep(2)
+				continue
+			break
+
 		self.preview_queue = Queue.Queue()
 		self.picture_queue = Queue.Queue()
 		self.picture_output = Queue.Queue()
@@ -173,12 +182,16 @@ class PhotoBoothGL (glesutils.GameWindow):
 	count_down = 0
 	count_start = 0
 
+	pic_log = None
+
 	def scrsize(self):
 		return (self.width, self.height)
 	def init(self):
 		self.start()
 
 	def start(self):
+		dt = str(datetime.datetime.now())
+		self.pic_log = open("pictures_%s.txt" % dt, 'w')
 		#pygame.mouse.set_visible(False)
 		# compile vertex and fragment shaders
 		vertex_shader = glesutils.VertexShader(vertex_glsl)
@@ -233,8 +246,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 			self.scrsize()), self))
 
 		
-		### cache info texts
-		
+		### cache info texts		
 		surf_text_press_button = info_font.render(
 			"* PRESS BUTTON TO EXIT *", 
 			0, green, pink)
@@ -246,9 +258,14 @@ class PhotoBoothGL (glesutils.GameWindow):
 			"PHOTOS ONLINE @ HTTP://EMMAISGOINGTOMARRY.ME BY 1ST OF JULY", 
 			0, green, pink)
 		self.text_website = Texture(
-			position_full((surf_text_website, (self.width/2, gap)), (self.width, self.height)), self)
+			position_full((surf_text_website, (self.width/2, gap)), self.scrsize()), self)
 
-		self.init_booth()
+		surf_text_taking = info_font.render(
+			"TAKING PHOTOS", 
+			0, green, pink)
+		self.text_taking = Texture(
+			position_full((surf_text_taking, (self.width/2, self.height/2)), self.scrsize()), self)
+
 
 		### create Snappy object with preview disabled
 		self.snappy = Snappy()
@@ -257,9 +274,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 
 		### enable the preview
 		self.snappy.enable_preview()
-	def init_booth(self):
-		### nothing to do
-		return
+
 
 	def get_button(self, button):
 		if self.button_events == None:
@@ -320,6 +335,10 @@ class PhotoBoothGL (glesutils.GameWindow):
 			self.snappy.disable_preview()
 			### set background to pink
 			glClearColor(pink[0]/255.0, pink[1]/255.0, pink[2]/255.0, 1)
+			self.swap_buffers()
+			self.text_taking.draw()
+			self.swap_buffers()
+
 			### delete live preview
 			self.preview_texture = None
 			self.photos = []
@@ -330,6 +349,8 @@ class PhotoBoothGL (glesutils.GameWindow):
 		if self.count_down == 0 and (self.taken < self.to_take):
 			name, folder, size = self.snappy.take_photo()
 			print "took photo %s saved to %s" % (name, folder)
+
+			self.pic_log.write("%s\t%d\t%d\n" % (name, self.taken, self.to_take))
 
 			### number of images across
 			na = math.sqrt(self.to_take)

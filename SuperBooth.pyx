@@ -2,7 +2,7 @@ import cython
 
 from libc.stdlib cimport free
 from cpython cimport PyObject, Py_INCREF
-
+from libcpp cimport bool
 import numpy as np
 cimport numpy as np
 
@@ -25,8 +25,10 @@ cdef extern from "Epeg.h":
 cdef extern from "Snapper.h" namespace "SuperBooth":
     cdef cppclass Snapper:
         Snapper()
+        bool valid()
         #int x0, y0, x1, y1
         #int getLength()
+        void uploadFile(char *, const char *, char *)
         void downloadPicture(char *, char *, unsigned int *, char **)
         void downloadResizePicture(char *, char *, unsigned int *, char **, Epeg_Image**)
         void takePicture(char *, char *, unsigned int*)
@@ -128,8 +130,16 @@ cdef class PySnapper:
     cdef Snapper *snapper      # hold a C++ instance which we're wrapping
     def __cinit__(self):
         self.snapper = new Snapper()
+        if not self.snapper.valid():
+            raise Exception("Camera not found")
     def __dealloc__(self):
         del self.snapper
+    def uploadFile(self, py_name, py_folder, py_contents):
+        cdef char *name = py_name
+        cdef char *folder = py_folder
+        cdef char *contents = py_contents
+        self.snapper.uploadFile(name, folder, contents)
+
     def takePicture(self):
         cdef char name[128]
         cdef char folder[1024]

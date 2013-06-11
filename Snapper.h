@@ -35,6 +35,8 @@ namespace SuperBooth {
 	public:
 		Snapper();
 		~Snapper();
+		bool valid();
+		void uploadFile(char *name, const char *folder, char *string);
 		void downloadPicture(char *name, char *folder, unsigned int *size, char **pic);
 		void downloadResizePicture(char *name, char *folder, unsigned int *size, char **pic, Epeg_Image **img);
 		void setTargetCard();

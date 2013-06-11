@@ -188,16 +188,61 @@ module top() {
 	}
 }
 
-if(1) {
-	if(1) {
-		base();
-	} else {
-		top();
+module bracket() {
+	// radius of central hole of bracket
+	br_r = 10.2;
+	// thickness of bracket
+	br_th = 6;
+	br_h = 8;
+	// radius of dimple on pole
+	br_d_r = 1.5;
+
+	module bracket_ring() {
+		union() {
+			difference() {
+				cylinder(h=br_h, r=br_r + br_th, center=true, $fn = 50);
+				cylinder(h=br_h+0.1, r = br_r, center=true, $fn = 50);
+			}
+			translate([0, br_r-0.5, 0]) cylinder(h=br_h, r = br_d_r, center=true, $fn=20);
+		}
 	}
-	
-} else {
-	case();
+
+	difference() {
+		bracket_ring();
+		translate([0, -br_r-br_th-3, 0]) cylinder(h=br_h+0.1, r = br_r+br_th, center=true, $fn=50);
+	}
+	for(i=[-1,1]) rotate([0,i*90+90, 0]) {
+		translate([13, -2, 0]) {
+			translate([0, -8, 0]) {
+				cube(size=[6, 16, br_h], center=true);
+			}
+			translate([7, -16 + br_th/2, 0]) {
+				difference() {
+					cube(size=[8, br_th, br_h], center=true);
+					rotate([90,0,0])cylinder(h=br_h+0.1, r = 1.8, center=true, $fn=30);
+				}
+			}
+		}
+	}
 }
+
+// enclosure
+if(0) {
+	if(1) {
+		if(1) {
+			base();
+		} else {
+			top();
+		}
+		
+	} else {
+		case();
+	}
+} else {
+	// bracket
+	bracket();
+}
+
 
 //
 

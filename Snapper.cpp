@@ -35,6 +35,8 @@ Snapper::Snapper() :
 	if (ret < GP_OK) {
 	 printf("No camera auto detected.\n");
 	 gp_camera_free(camera);
+	 camera = NULL;
+	 return;
 	}
 
 #ifdef RPI
@@ -54,9 +56,30 @@ Snapper::~Snapper() {
 	gp_context_unref(context);
 }
 
+
+bool Snapper::valid() {
+	return camera ? true : false;
+}
 /*void Snapper::transferPreview(unsigned int **out, unsigned int *size) {
 	
 }*/
+
+// create a file on the camera with string as its contents
+// save to folder/path
+void Snapper::uploadFile(char *name, const char *folder, char *string) {
+	CameraFile *file;
+	gphoto(gp_file_new(&file));
+
+	// append the data from string into the file
+	gphoto(gp_file_append(file, string, strlen(string)));
+	printf("appended\n");
+	// upload the file
+	//#gphoto(gp_camera_folder_put_file(camera, folder, name, GP_FILE_TYPE_NORMAL, file, context));
+	gphoto(gp_filesystem_put_file(camera->fs, folder, name, GP_FILE_TYPE_NORMAL, file, context));
+	printf("uploaded %s to %s\n", name, folder);
+	// free the file
+	gphoto(gp_file_unref(file));
+}
 
 void Snapper::setTargetCard() {
 	CameraWidget *rootwidget, *mainwidget, *settingswidget, *capturetargetwidget; 
