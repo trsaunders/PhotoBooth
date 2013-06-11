@@ -148,11 +148,15 @@ class Texture:
 		self.texture.bind(self.booth.program.uniform.texture.value)
 		self.booth.drawing.draw()
 
-def position_full(surf, pos, size):
+def position_full(imgs, size):
 	full_screen_surf = pygame.Surface(size, pygame.SRCALPHA, 32)
-	px = int(pos[0] - surf.get_width()/2.0)
-	py = int(pos[1] - surf.get_height()/2.0)
-	full_screen_surf.blit(surf.convert_alpha(), (px, py))
+	if type(imgs) == tuple:
+		imgs = [imgs]
+
+	for (surf, pos) in imgs:
+		px = int(pos[0] - surf.get_width()/2.0)
+		py = int(pos[1] - surf.get_height()/2.0)
+		full_screen_surf.blit(surf.convert_alpha(), (px, py))
 	return full_screen_surf
 
 class PhotoBoothGL (glesutils.GameWindow):
@@ -206,30 +210,43 @@ class PhotoBoothGL (glesutils.GameWindow):
 		# create an array buffer from the spec
 		# note: all buffer objects are automatically bound on creation
 		self.drawing = array_spec.make_drawing(vertex_attrib=positions, elements=elements)
-		### cache count down numbers
+
+		### cache text overlays
+		### gap above and beloy images
+		gap = int((self.height - (self.width/1.5))/4)
+
  		font_file = "%s/font.ttf" % os.path.dirname(os.path.realpath(__file__))
 		numfont = pygame.font.Font(font_file, 200)
+		info_font = pygame.font.Font(font_file, 60)
+
+		### count down numbers
 		self.cd = []
 		for i in range(4):
 			surf = numfont.render("%d" % (i), 0, green, pink)
+			text = info_font.render("* LOOK AT CAMERA *", 0, pink, green)
 			pos = (self.width/2, self.height/2)
-			self.cd.append(Texture(position_full(surf, pos, self.scrsize()), self))
+			self.cd.append(Texture(position_full([
+				(surf, pos),
+				(text, (self.width/2, self.height - gap)),
+				(text, (self.width/2, gap)),
+			],
+			self.scrsize()), self))
 
-		gap = int((self.height - (self.width/1.5))/4)
+		
 		### cache info texts
-		info_font = pygame.font.Font(font_file, 60)
+		
 		surf_text_press_button = info_font.render(
 			"* PRESS BUTTON TO EXIT *", 
 			0, green, pink)
 		self.text_press_button = Texture(
-			position_full(surf_text_press_button, (self.width/2, self.height-gap), (self.width, self.height)), self)
+			position_full([(surf_text_press_button, (self.width/2, self.height-gap))], (self.width, self.height)), self)
 
 		small_info_font = pygame.font.Font(font_file, 25)
 		surf_text_website = small_info_font.render(
 			"PHOTOS ONLINE @ HTTP://EMMAISGOINGTOMARRY.ME BY 1ST OF JULY", 
 			0, green, pink)
 		self.text_website = Texture(
-			position_full(surf_text_website, (self.width/2, gap), (self.width, self.height)), self)
+			position_full((surf_text_website, (self.width/2, gap)), (self.width, self.height)), self)
 
 		self.init_booth()
 
@@ -333,8 +350,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 
 			#self.main_surface.blit(imgs, (i_x*t_w, p_y + i_y*t_h))
 			pos = (i_x*t_w+int(t_w/2), p_y + i_y*t_h + int(t_h/2))
-			print "placing photo at %d,%d" % pos
-			img_surf = position_full(imgs, pos, self.scrsize())
+			img_surf = position_full((imgs, pos), self.scrsize())
 
 			self.photos.append(Texture(img_surf, self))
 
