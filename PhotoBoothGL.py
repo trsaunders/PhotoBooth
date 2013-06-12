@@ -240,7 +240,7 @@ class PhotoBoothGL (glesutils.GameWindow):
  		font_file = "%s/font.ttf" % os.path.dirname(os.path.realpath(__file__))
 		numfont = pygame.font.Font(font_file, 200)
 		info_font = pygame.font.Font(font_file, 60)
-		med_info_font = pygame.font.Font(font_file, 40)
+		med_info_font = pygame.font.Font(font_file, 54)
 
 		### count down numbers
 		self.cd = []
