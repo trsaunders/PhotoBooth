@@ -162,7 +162,7 @@ void Snapper::takePicture(char *name, char *folder, unsigned int *size) {
 // record size of image in size
 void Snapper::decodeJPEG(const char *jpeg_data, unsigned long int jpeg_len, char **out, unsigned int *size) {
 #ifdef RPI
-	jpeg->decode(jpeg_data, jpeg_len, &out, &size[0], &size[1]);
+	jpeg->decode(jpeg_data, jpeg_len, out, &size[0], &size[1]);
 	size[2] = 4;
 #else
 	// write to disk
