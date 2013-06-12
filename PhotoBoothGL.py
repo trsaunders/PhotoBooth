@@ -369,7 +369,6 @@ class PhotoBoothGL (glesutils.GameWindow):
 					self.snappy.disconnect()
 
 				self.clear_button_events()
-				time.sleep(0.5)
 				return True
 
 		if self.snappy.preview_available():
