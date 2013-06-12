@@ -28,6 +28,7 @@ class PhotoBoothGLPi(PhotoBoothGL):
 			return True
 		return False
 	def clear_button_events(self):
+		global last_button = time.time()
 		return
 
 	def left_button_pressed(self):
