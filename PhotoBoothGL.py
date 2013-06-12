@@ -349,7 +349,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 
 	def loop(self):
 		if self.count_down == 0 and self.to_take == 0:
-			if not self.last_action or (time.time() - self.last_action) < 20:
+			if not self.last_action or (time.time() - self.last_action) < 120:
 				self.text_left_button.draw(pos=(self.width/2, self.gap))
 				self.text_right_button.draw(pos=(self.width/2, self.height - self.gap))
 			else:
