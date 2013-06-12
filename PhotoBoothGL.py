@@ -95,8 +95,6 @@ class Snappy(threading.Thread):
 # Here is the vertex shader.
 vertex_glsl = """
 uniform mat4 mvp_mat; // a uniform is an input to the shader which is the same for all vertices
-//uniform mat4 scale_mat;
-//uniform mat4 trans_mat;
 attribute vec2 vertex_attrib; // an attribute is a vertex-specific input to the vertex shader
 attribute vec2 texcoord_attrib; // an attribute is a vertex-specific input to the vertex shader
 
