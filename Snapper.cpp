@@ -160,14 +160,14 @@ void Snapper::takePicture(char *name, char *folder, unsigned int *size) {
 // read jpeg data from jpeg of length jpeg_len
 // store pointer to decoded memory in out
 // record size of image in size
-void Snapper::decodeJPEG(const char *jpeg, unsigned long int jpeg_len, char **out, unsigned int *size) {
+void Snapper::decodeJPEG(const char *jpeg_data, unsigned long int jpeg_len, char **out, unsigned int *size) {
 #ifdef RPI
-	jpeg->decode(jpeg, jpeg_len, &out, &size[0], &size[1]);
+	jpeg->decode(jpeg_data, jpeg_len, &out, &size[0], &size[1]);
 	size[2] = 4;
 #else
 	// write to disk
 	std::ofstream outfile ("preview.jpg",std::ofstream::binary);
-	outfile.write (jpeg, jpeg_len);
+	outfile.write (jpeg_data, jpeg_len);
 
 	infile = fopen("preview.jpg", "rb" );
 
