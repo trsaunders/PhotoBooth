@@ -137,8 +137,8 @@ int JPEG::init() {
 	return 0;
 }
 
-int JPEG::decode(const char* data_in, unsigned int length_in, 
-	char **out, unsigned int *height, unsigned int *width)
+int JPEG::decode(const char* data_in, unsigned long int length_in, 
+	char **out, unsigned int *width, unsigned int *height)
 {
 	try {
 		// start of image
@@ -251,21 +251,12 @@ int JPEG::decode(const char* data_in, unsigned int length_in,
 		assert(m_pCompResize->GetPendingEventCount() == 0);
 		assert(m_pCompResize->GetPendingEmptyCount() == 0);
 		assert(m_pCompResize->GetPendingFillCount() == 0);
-
 		*out = (char *)malloc(width[0]*height[0]*4);
-		memcpy(out[0], m_pHeaderOutput->pBuffer, width[0]*height[0]*4);
-		// write filled buffer out to file
-		// FILE *FDST = fopen("output.raw", "wb");
-		// if (!FDST) throw runtime_error("Unable to create output file");
-
-		// fwrite(m_pHeaderOutput->pBuffer, 1, m_pHeaderOutput->nAllocLen, FDST);
-		// fclose(FDST);
-
-		// m_pLogger->Log("Write outraw.raw");
-		// end of image
+		memcpy(*out, m_pHeaderOutput->pBuffer, width[0]*height[0]*4);
 	}
 	catch (std::exception &ex)
 	{
+		printf("Exception: %s\n", ex.what());
 		m_pLogger->Log("Got exception:");
 		m_pLogger->Log(ex.what());
 		return 1;

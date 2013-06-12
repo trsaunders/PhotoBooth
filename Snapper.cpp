@@ -25,7 +25,6 @@ int gphoto(int code);
 Snapper::Snapper() : 
 	camera(NULL),
 	context(NULL),
-	cfile(NULL),
 	retries(5) {
 	gphoto(gp_camera_new (&camera));
 	context = gp_context_new();
@@ -45,9 +44,6 @@ Snapper::Snapper() :
 }
  
 Snapper::~Snapper() {
-	//if(cfile)
-	//	gp_file_unref(cfile);
-
 #ifdef RPI
 	delete jpeg;
 #endif
@@ -59,9 +55,6 @@ Snapper::~Snapper() {
 bool Snapper::valid() {
 	return camera ? true : false;
 }
-/*void Snapper::transferPreview(unsigned int **out, unsigned int *size) {
-	
-}*/
 
 // create a file on the camera with string as its contents
 // save to folder/path
@@ -98,34 +91,35 @@ void Snapper::setTargetCard() {
 
 /* download a photo from camera */
 void Snapper::downloadPicture(char *name, char *folder, char **out, unsigned int *out_size) {
-	if(cfile)
-		gp_file_unref(cfile);
+	CameraFile *download_file;
 
-	gphoto(gp_file_new(&cfile));
+	gphoto(gp_file_new(&download_file));
 
-	gphoto(gp_camera_file_get(camera, folder, name, GP_FILE_TYPE_NORMAL, cfile, context));
+	gphoto(gp_camera_file_get(camera, folder, name, GP_FILE_TYPE_NORMAL, download_file, context));
 
 	unsigned long int pic_size;
 	const char *pic_data;
 
-	gphoto(gp_file_get_data_and_size(cfile, &pic_data, &pic_size));
+	gphoto(gp_file_get_data_and_size(download_file, &pic_data, &pic_size));
 
 	decodeJPEG(pic_data, pic_size, out, out_size);
+
+	gphoto(gp_file_unref(download_file));
 }
 
 void Snapper::downloadResizePicture(char *name, char *folder, 
 	unsigned int *size, char **pic, Epeg_Image **img) {
-	if(cfile)
-		gp_file_unref(cfile);
 
-	gphoto(gp_file_new(&cfile));
+	CameraFile *download_file;
 
-	gphoto(gp_camera_file_get(camera, folder, name, GP_FILE_TYPE_NORMAL, cfile, context));
+	gphoto(gp_file_new(&download_file));
+
+	gphoto(gp_camera_file_get(camera, folder, name, GP_FILE_TYPE_NORMAL, download_file, context));
 
 	unsigned long int pic_size;
 	const char *pic_data;
 
-	gphoto(gp_file_get_data_and_size(cfile, &pic_data, &pic_size));
+	gphoto(gp_file_get_data_and_size(download_file, &pic_data, &pic_size));
 
 	Epeg_Image *im = epeg_memory_open((unsigned char*)pic_data, pic_size);
 
@@ -134,6 +128,8 @@ void Snapper::downloadResizePicture(char *name, char *folder,
 
 	*pic = (char *)epeg_pixels_get(im, 0, 0, size[0], size[1]);
 	*img = im;
+
+	gphoto(gp_file_unref(download_file));
 }
 
 void Snapper::takePicture(char *name, char *folder, unsigned int *size) {
@@ -145,11 +141,6 @@ void Snapper::takePicture(char *name, char *folder, unsigned int *size) {
 	strcpy(name, fpath.name);
 	strcpy(folder, fpath.folder);
 
-	if(cfile)
-		gp_file_unref(cfile);
-
-	gphoto(gp_file_new(&cfile));
-
 	CameraFileInfo info;
 
 	gphoto(gp_camera_file_get_info(camera, folder, name, &info, context));
@@ -157,21 +148,30 @@ void Snapper::takePicture(char *name, char *folder, unsigned int *size) {
 	size[1] = info.file.height;
 }
 
+
 // read jpeg data from jpeg of length jpeg_len
 // store pointer to decoded memory in out
 // record size of image in size
 void Snapper::decodeJPEG(const char *jpeg_data, unsigned long int jpeg_len, char **out, unsigned int *size) {
 #ifdef RPI
-	jpeg->decode(jpeg_data, jpeg_len, out, &size[0], &size[1]);
+	unsigned int width=0, height=0;
+
+	if(jpeg->decode(jpeg_data, jpeg_len, out, &im_w, &im_h)) {
+		printf("there was an error decoding the jpeg\n");
+	}
+
+	size[0] = im_w;
+	size[1] = im_h;
 	size[2] = 4;
 #else
 	// write to disk
 	std::ofstream outfile ("preview.jpg",std::ofstream::binary);
 	outfile.write (jpeg_data, jpeg_len);
 
-	infile = fopen("preview.jpg", "rb" );
+	FILE *infile = fopen("preview.jpg", "rb" );
 
 	struct jpeg_error_mgr jerr;
+	struct jpeg_decompress_struct cinfo;
 	/* here we set up the standard libjpeg error handler */
 	cinfo.err = jpeg_std_error( &jerr );
 	jpeg_create_decompress(&cinfo);
@@ -180,7 +180,7 @@ void Snapper::decodeJPEG(const char *jpeg_data, unsigned long int jpeg_len, char
 	jpeg_start_decompress(&cinfo);
 
 	size[0] = cinfo.output_width;
-	size[1] = im_h = cinfo.output_height;
+	size[1] = cinfo.output_height;
 	size[2] = cinfo.output_components;
 	JSAMPROW row_pointer[1];
 	unsigned long location = 0;
@@ -210,21 +210,27 @@ void Snapper::decodeJPEG(const char *jpeg_data, unsigned long int jpeg_len, char
 void Snapper::capturePreview(char **out, unsigned int *size) {
 	const char* preview_data;
 	unsigned long int preview_size;
-	if(cfile)
-		gp_file_unref(cfile);
 
-	gphoto(gp_file_new(&cfile));
+	CameraFile *preview_file;
+
+	gphoto(gp_file_new(&preview_file));
 
 	// this seems to fail first time, so retry
-	if(gp_camera_capture_preview(camera, cfile, context)) {
+	if(gp_camera_capture_preview(camera, preview_file, context)) {
 		usleep(50000);
-		gphoto(gp_camera_capture_preview(camera, cfile, context));
+		gphoto(gp_camera_capture_preview(camera, preview_file, context));
 	}
 
-	gphoto(gp_file_get_data_and_size(cfile, &preview_data, &preview_size));
+	gphoto(gp_file_get_data_and_size(preview_file, &preview_data, &preview_size));
+
+	std::ofstream outfile ("preview.jpg",std::ofstream::binary);
+	outfile.write (preview_data, preview_size);
 
 	decodeJPEG(preview_data, preview_size, out, size);
+
+	gp_file_unref(preview_file);
 }
+
 
 int gphoto(int code) {
 	if(code) {

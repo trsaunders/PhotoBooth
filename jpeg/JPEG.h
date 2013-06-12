@@ -17,7 +17,7 @@ public:
 	JPEG(ILogger *pLogger);
 	~JPEG();
 	static unsigned int RefreshTimer();
-	int decode(const char* data, unsigned int length, char **out, unsigned int *height, unsigned int *width);
+	int decode(const char*, unsigned long int, char **, unsigned int *, unsigned int *);
 
 private:
 

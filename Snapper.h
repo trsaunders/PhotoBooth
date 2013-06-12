@@ -20,11 +20,7 @@ namespace SuperBooth {
 	private:
 		Camera *camera;
 		GPContext *context;
-		CameraFile *cfile;
 		unsigned char retries;
-		struct jpeg_decompress_struct cinfo;
-		FILE *infile;
-		char *out;
 		unsigned int im_h, im_w;
 #ifdef RPI
 		JPEG *jpeg;
@@ -39,7 +35,6 @@ namespace SuperBooth {
 		void downloadResizePicture(char *name, char *folder, unsigned int *size, char **pic, Epeg_Image **img);
 		void setTargetCard();
 		void takePicture(char *name, char *folder, unsigned int *size);
-
 		void capturePreview(char **out, unsigned int *size);
 		void decodeJPEG(const char *jpeg, unsigned long int jpeg_len, char **out, unsigned int *size);
 	};

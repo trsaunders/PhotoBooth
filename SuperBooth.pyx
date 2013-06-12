@@ -32,8 +32,6 @@ cdef extern from "Snapper.h" namespace "SuperBooth":
         void downloadResizePicture(char *, char *, unsigned int *, char **, Epeg_Image**)
         void takePicture(char *, char *, unsigned int*)
         void capturePreview(char **, unsigned int *)
-        #void startCapturePreview(unsigned int *)
-        #void finishCapturePreview(char **raw_image)
 
 cdef class bufferWrapper:
     cdef void* data_ptr
