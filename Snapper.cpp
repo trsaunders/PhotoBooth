@@ -26,7 +26,6 @@ Snapper::Snapper() :
 	camera(NULL),
 	context(NULL),
 	cfile(NULL),
-	preview_data(NULL),
 	retries(5) {
 	gphoto(gp_camera_new (&camera));
 	context = gp_context_new();
@@ -98,7 +97,7 @@ void Snapper::setTargetCard() {
 }
 
 /* download a photo from camera */
-void Snapper::downloadPicture(char *name, char *folder, unsigned int *size, char **pic) {
+void Snapper::downloadPicture(char *name, char *folder, char **out, unsigned int *out_size) {
 	if(cfile)
 		gp_file_unref(cfile);
 
@@ -111,7 +110,7 @@ void Snapper::downloadPicture(char *name, char *folder, unsigned int *size, char
 
 	gphoto(gp_file_get_data_and_size(cfile, &pic_data, &pic_size));
 
-	printf("downloaded picture. %d bytes\n", pic_size);
+	decodeJPEG(pic_data, pic_size, out, out_size);
 }
 
 void Snapper::downloadResizePicture(char *name, char *folder, 
@@ -158,33 +157,17 @@ void Snapper::takePicture(char *name, char *folder, unsigned int *size) {
 	size[1] = info.file.height;
 }
 
-void Snapper::startCapturePreview(unsigned int *size) {
-	if(cfile)
-		gp_file_unref(cfile);
-
-	gphoto(gp_file_new(&cfile));
-
-	// this seems to fail first time, so retry
-	if(gp_camera_capture_preview(camera, cfile, context)) {
-		printf("retrying\n");
-		usleep(50000);
-		gphoto(gp_camera_capture_preview(camera, cfile, context));
-	}
-
-	gphoto(gp_file_get_data_and_size(cfile, &preview_data, &preview_size));
-
-	// on ARM, call the accelerated routines to decode jpeg
-	// otherwise, decode manually
-
+// read jpeg data from jpeg of length jpeg_len
+// store pointer to decoded memory in out
+// record size of image in size
+void Snapper::decodeJPEG(const char *jpeg, unsigned long int jpeg_len, char **out, unsigned int *size) {
 #ifdef RPI
-	jpeg->decode(preview_data, preview_size, &out, &im_h, &im_w);
-	size[0] = im_w;
-	size[1] = im_h;
+	jpeg->decode(jpeg, jpeg_len, &out, &size[0], &size[1]);
 	size[2] = 4;
 #else
 	// write to disk
 	std::ofstream outfile ("preview.jpg",std::ofstream::binary);
-	outfile.write (preview_data, preview_size);
+	outfile.write (jpeg, jpeg_len);
 
 	infile = fopen("preview.jpg", "rb" );
 
@@ -196,61 +179,51 @@ void Snapper::startCapturePreview(unsigned int *size) {
 	jpeg_read_header(&cinfo, TRUE);
 	jpeg_start_decompress(&cinfo);
 
-	size[0] = im_w = cinfo.output_width;
+	size[0] = cinfo.output_width;
 	size[1] = im_h = cinfo.output_height;
 	size[2] = cinfo.output_components;
-#endif
-} 
-
-void Snapper::finishCapturePreview(char **raw_image) {
-#ifdef RPI
-#if 1
-	*raw_image = out;
-#else
-	char *o = (char *)malloc(im_h*im_w*3);
-
-	unsigned int x,y,z;
-	for(x = 0; x < im_w; x++) {
-		for(y = 0; y < im_h; y++) {
-			for(z = 0; z < 3; z++) {
-				o[x*im_h*3 + y*3 + z] = out[x*im_h*4 + y*4 + z];
-			}
-		}
-	}
-	*raw_image = o;
-	free(out);
-#endif
-	return;
-#else
 	JSAMPROW row_pointer[1];
 	unsigned long location = 0;
 	int i = 0;
 
 	row_pointer[0] = (unsigned char *)malloc( cinfo.output_width*cinfo.num_components );
 
-	char *out = (char *)malloc(im_h*im_w*3);
+	char *o = (char *)malloc(size[0]*size[1]*3);
 	
 	while( cinfo.output_scanline < cinfo.image_height ) {
 		jpeg_read_scanlines( &cinfo, row_pointer, 1 );
 		for( i=0; i<cinfo.image_width*cinfo.num_components;i++) 
-			out[location++] = row_pointer[0][i];
+			o[location++] = row_pointer[0][i];
 	}
 
-	*raw_image = out;
+	*out = o;
 
 	/* wrap up decompression, destroy objects, free pointers and close open files */
 	//jpeg_finish_decompress( &cinfo );
 	jpeg_destroy_decompress( &cinfo );
 	free( row_pointer[0] );
 	fclose( infile );
+
 #endif
 }
 
-void Snapper::capturePreview(unsigned char **out, unsigned int *size) {
-	startCapturePreview(size);
+void Snapper::capturePreview(char **out, unsigned int *size) {
+	const char* preview_data;
+	unsigned long int preview_size;
+	if(cfile)
+		gp_file_unref(cfile);
 
-	unsigned char *data = new unsigned char[cinfo.output_height * cinfo.output_width * cinfo.output_components];
+	gphoto(gp_file_new(&cfile));
 
+	// this seems to fail first time, so retry
+	if(gp_camera_capture_preview(camera, cfile, context)) {
+		usleep(50000);
+		gphoto(gp_camera_capture_preview(camera, cfile, context));
+	}
+
+	gphoto(gp_file_get_data_and_size(cfile, &preview_data, &preview_size));
+
+	decodeJPEG(preview_data, preview_size, out, size);
 }
 
 int gphoto(int code) {

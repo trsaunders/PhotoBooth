@@ -26,15 +26,32 @@ cdef extern from "Snapper.h" namespace "SuperBooth":
     cdef cppclass Snapper:
         Snapper()
         bool valid()
-        #int x0, y0, x1, y1
-        #int getLength()
+        decodeJPEG(const char *, unsigned long int, char **, unsigned int *)
         void uploadFile(char *, const char *, char *)
-        void downloadPicture(char *, char *, unsigned int *, char **)
+        void downloadPicture(char *, char *, char **, unsigned int *)
         void downloadResizePicture(char *, char *, unsigned int *, char **, Epeg_Image**)
         void takePicture(char *, char *, unsigned int*)
-        void capturePreview(unsigned char **, unsigned int *)
-        void startCapturePreview(unsigned int *)
-        void finishCapturePreview(char **raw_image)
+        void capturePreview(char **, unsigned int *)
+        #void startCapturePreview(unsigned int *)
+        #void finishCapturePreview(char **raw_image)
+
+cdef class bufferWrapper:
+    cdef void* data_ptr
+    cdef int length
+
+    cdef set_data(self, int l, void *data_ptr):
+        self.data_ptr = data_ptr
+        self.length = l
+
+    def __array__(self):
+        cdef np.npy_intp shape[1]
+        shape[1] = self.length
+        ndarray = np.PyArray_SimpleNewFromData(1, shape, np.NPY_BYTE, self.data_ptr)
+
+        return ndarray
+
+    def __dealloc__(self):
+        free(<void*>self.data_ptr)
 
 
 cdef class ArrayWrapper:
@@ -44,39 +61,21 @@ cdef class ArrayWrapper:
     cdef int c
  
     cdef set_data(self, int w, int h, int c, void* data_ptr):
-        """ Set the data of the array
- 
-        This cannot be done in the constructor as it must recieve C-level
-        arguments.
- 
-        Parameters:
-        -----------
-        size: int
-            Length of the array.
-        data_ptr: void*
-            Pointer to the data            
- 
-        """
         self.data_ptr = data_ptr
         self.h = h
         self.w = w
         self.c = c
  
     def __array__(self):
-        """ Here we use the __array__ method, that is called when numpy
-            tries to get an array from the object."""
         cdef np.npy_intp shape[3]
         shape[0] = <np.npy_intp> self.w
         shape[1] = <np.npy_intp> self.h
         shape[2] = <np.npy_intp> self.c
-        # Create a 1D array, of length 'size'
-        ndarray = np.PyArray_SimpleNewFromData(3, shape,
-                                               np.NPY_BYTE, self.data_ptr)
+
+        ndarray = np.PyArray_SimpleNewFromData(3, shape,np.NPY_BYTE, self.data_ptr)
         return ndarray
  
     def __dealloc__(self):
-        """ Frees the array. This is called by Python when all the
-        references to the object are gone. """
         free(<void*>self.data_ptr)
 
 cdef class EPEGWrapper:
@@ -134,6 +133,8 @@ cdef class PySnapper:
             raise Exception("Camera not found")
     def __dealloc__(self):
         del self.snapper
+
+    ### Note: doesnt work on canon 50D so untested
     def uploadFile(self, py_name, py_folder, py_contents):
         cdef char *name = py_name
         cdef char *folder = py_folder
@@ -148,12 +149,26 @@ cdef class PySnapper:
         cdef bytes py_name = name
         cdef bytes py_folder = folder
         return py_name, py_folder, (size[0], size[1])
-    def downloadPicture(self, name, folder):
-        cdef char* py_name = name
-        cdef char* py_folder = folder
-        cdef char *out
-        cdef unsigned int size[2]
-        self.snapper.downloadPicture(name, folder, size, &out)
+
+    def downloadPicture(self, py_name, py_folder):
+        cdef char* name = py_name
+        cdef char* folder = py_folder
+        cdef char* out = NULL
+        cdef unsigned int size[3]
+
+        self.snapper.downloadPicture(name, folder, &out, size)
+
+        cdef np.ndarray ndarray
+        array_wrapper = ArrayWrapper()
+        array_wrapper.set_data(size[0], size[1], size[2], <void*> out) 
+        ndarray = np.array(array_wrapper, copy=False)
+        ndarray.base = <PyObject*> array_wrapper
+
+        # Increment the reference count, as the above assignement was done in
+        # C, and Python does not know that there is this additional reference
+        Py_INCREF(array_wrapper)
+        return ndarray
+
     def downloadResizePicture(self, name, folder, width, height):
         cdef char* py_name = name
         cdef char* py_folder = folder
@@ -176,21 +191,20 @@ cdef class PySnapper:
         Py_INCREF(array_wrapper)
         return ndarray
 
+
     def capturePreview(self):
         cdef unsigned int size[3]
-        self.snapper.startCapturePreview(size)
         cdef char *out
-        self.snapper.finishCapturePreview(&out)
+
+        self.snapper.capturePreview(&out, size)
 
         cdef np.ndarray ndarray
         array_wrapper = ArrayWrapper()
-        #array_wrapper.set_data(size[0], size[1], 4, <void*> out) 
         array_wrapper.set_data(size[0], size[1], size[2], <void*> out) 
         ndarray = np.array(array_wrapper, copy=False)
-        # Assign our object to the 'base' of the ndarray object
         ndarray.base = <PyObject*> array_wrapper
+
         # Increment the reference count, as the above assignement was done in
         # C, and Python does not know that there is this additional reference
         Py_INCREF(array_wrapper)
         return ndarray
-        #self.snapper.capturePreview(NULL, NULL)

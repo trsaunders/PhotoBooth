@@ -21,8 +21,6 @@ namespace SuperBooth {
 		Camera *camera;
 		GPContext *context;
 		CameraFile *cfile;
-		unsigned long int preview_size;
-		const char *preview_data;
 		unsigned char retries;
 		struct jpeg_decompress_struct cinfo;
 		FILE *infile;
@@ -37,13 +35,13 @@ namespace SuperBooth {
 		~Snapper();
 		bool valid();
 		void uploadFile(char *name, const char *folder, char *string);
-		void downloadPicture(char *name, char *folder, unsigned int *size, char **pic);
+		void downloadPicture(char *, char *, char **, unsigned int *);
 		void downloadResizePicture(char *name, char *folder, unsigned int *size, char **pic, Epeg_Image **img);
 		void setTargetCard();
 		void takePicture(char *name, char *folder, unsigned int *size);
-		void startCapturePreview(unsigned int *size);
-		void finishCapturePreview(char **out);
-		void capturePreview(unsigned char **out, unsigned int *size);
+
+		void capturePreview(char **out, unsigned int *size);
+		void decodeJPEG(const char *jpeg, unsigned long int jpeg_len, char **out, unsigned int *size);
 	};
 }
 

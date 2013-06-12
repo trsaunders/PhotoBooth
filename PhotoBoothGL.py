@@ -53,7 +53,10 @@ class Snappy(threading.Thread):
 
 			if self.picture_resize.qsize() > 0:
 				r = self.picture_resize.get()
-				img = self.snap.downloadResizePicture(r[0], r[1], r[2], r[3])
+				if len(r) == 4:
+					img = self.snap.downloadResizePicture(r[0], r[1], r[2], r[3])
+				elif len(r) == 2:
+					img = self.snap.downloadPicture(r[0], r[1])
 				self.picture_resize_out.put(img)
 
 			if self.preview_sem.acquire(blocking=False):
@@ -75,6 +78,9 @@ class Snappy(threading.Thread):
 	def get_resized(self, name, folder, width, height):
 		self.picture_resize.put((name, folder, width, height))
 		return self.picture_resize_out.get()
+	def get_picture(self, name, folder):
+		self.picture_resize.put((name, folder))
+		return self.picture_resize_out.get()
 	def disable_preview(self):
 		self.preview_sem.acquire(blocking=True)
 		### clear any remaining frames
@@ -89,15 +95,15 @@ class Snappy(threading.Thread):
 # Here is the vertex shader.
 vertex_glsl = """
 uniform mat4 mvp_mat; // a uniform is an input to the shader which is the same for all vertices
-uniform mat4 scale_mat;
-uniform mat4 trans_mat;
+//uniform mat4 scale_mat;
+//uniform mat4 trans_mat;
 attribute vec2 vertex_attrib; // an attribute is a vertex-specific input to the vertex shader
 attribute vec2 texcoord_attrib; // an attribute is a vertex-specific input to the vertex shader
 
 varying vec2 texcoord_var;  // a varying is output to the vertex shader and input to the fragment shader
 
 void main(void) {
-  gl_Position = mvp_mat * scale_mat * trans_mat * vec4(vertex_attrib, 0.0, 1.0);
+  gl_Position = mvp_mat *vec4(vertex_attrib, 0.0, 1.0);
   texcoord_var = texcoord_attrib;
 }
 """
@@ -118,6 +124,8 @@ pink = (255,0, 200)
 green = (0, 253, 0)
 
 class Texture:
+	target_size = None
+	pos = None
 	def __init__(self, img, booth):
 		self.img = img
 		self.booth = booth
@@ -137,21 +145,36 @@ class Texture:
 			raise Exception("unknown type: %s" % type(img))
 
 		self.texture = glesutils.Texture.from_data(texture_data)
+
+	def set_target_size(self, tx, ty):
+		self.target_size = (tx, ty)
+	def set_position(self, pos):
+		self.pos = pos
 	### cx, cy are center coordinates
 	### scale is size relative to whole window
 	def draw(self):
-
-		### preserve aspect ratio of image
-		aspect = float(self.booth.height)*float(self.w)/(float(self.h)*float(self.booth.width))
 		### a scale value of 2 covers whole window
-		sx = 2.0#/float(scale)
-		sy = 2.0#/(float(scale)*aspect)
+		sx = 2.0
+		sy = 2.0
 
-		#tx = float(cx)/float(self.booth.width)
-		#ty = float(cy)/float(self.booth.height)
+		tx = 0
+		ty = 0
 
-		self.booth.trans_mat.value = transforms.translation((-0.5, -0.5, 0.0))
-		self.booth.scale_mat.value = transforms.stretching(2.0, 2.0/aspect,1)
+		if self.target_size:
+			sx *= float(self.target_size[0])/float(self.booth.width)
+			sy *= float(self.target_size[1])/float(self.booth.height)
+
+		if self.pos:
+			tx = (2.0*float(self.pos[0])/float(self.booth.width))-1.0
+			ty = (2.0*float(self.pos[1])/float(self.booth.height))-1.0
+
+		Tm = transforms.translation((-0.5,-0.5,0))
+		### correct inverted texture
+		R = transforms.rotation_degrees(180, "z")
+		### shift texture to center of rotation before rotating
+		S = transforms.stretching(sx, sy, 0)
+		T = transforms.translation((tx,-ty,0))
+		self.booth.mvp_mat.value = T.dot(S).dot(R).dot(Tm)
 		#print("Texture size: %dx%d" % (texture_data.width, texture_data.height))
 		self.booth.program.use()
 		self.texture.bind(self.booth.program.uniform.texture.value)
@@ -207,11 +230,6 @@ class PhotoBoothGL (glesutils.GameWindow):
 		glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
 		# load uniforms
 		self.mvp_mat = self.program.uniform.mvp_mat
-		self.scale_mat = self.program.uniform.scale_mat
-		self.trans_mat = self.program.uniform.trans_mat
-		self.mvp_mat.value = transforms.rotation_degrees(180, "z")
-		self.scale_mat.value = transforms.stretching(1,1,1)
-		self.trans_mat.value = transforms.translation((-0.5, -0.5, 0.0))
 
 		# bind uniform named "texture" to texture unit 1
 		# normally, when using only one texture, 0 would be more logical,
@@ -244,7 +262,6 @@ class PhotoBoothGL (glesutils.GameWindow):
 				(text, (self.width/2, gap)),
 			],
 			self.scrsize()), self))
-
 		
 		### cache info texts		
 		surf_text_press_button = info_font.render(
@@ -308,6 +325,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 				return False
 
 			self.preview_texture = Texture(img, self)
+			self.preview_texture.set_target_size(self.width, self.width/1.5)
 
 		if self.preview_texture != None:
 			self.preview_texture.draw()
@@ -360,20 +378,28 @@ class PhotoBoothGL (glesutils.GameWindow):
 			t_h = int(t_w/ratio)
 			### calculate padding at top and bottom
 			p_y = int((self.height-(t_h*na))/2)
-
-			img = self.snappy.get_resized(name, folder, t_w, t_h)
-			imgs = pygame.image.frombuffer(np.getbuffer(img),
-				 (img.shape[0], img.shape[1]), 'RGB')
-
 			### work out where the image should be blitted based on the current number
 			i_x = self.taken % na
 			i_y = math.floor(self.taken/na)
-
-			#self.main_surface.blit(imgs, (i_x*t_w, p_y + i_y*t_h))
 			pos = (i_x*t_w+int(t_w/2), p_y + i_y*t_h + int(t_h/2))
-			img_surf = position_full((imgs, pos), self.scrsize())
 
-			self.photos.append(Texture(img_surf, self))
+
+			if 1:
+				### resize using opengl texture
+				img = self.snappy.get_picture(name, folder)
+				pic_texture = Texture(img, self)
+				pic_texture.set_target_size(t_w, t_h)
+				pic_texture.set_position(pos)
+			else:
+				### resize using EPEG
+				img = self.snappy.get_resized(name, folder, t_w, t_h)
+				imgs = pygame.image.frombuffer(np.getbuffer(img),
+					 (img.shape[0], img.shape[1]), 'RGB')
+
+				img_surf = position_full((imgs, pos), self.scrsize())
+				pic_texture = Texture(img_surf, self)
+
+			self.photos.append(pic_texture)
 
 			### draw this and any previous photos
 			for ph in self.photos:
