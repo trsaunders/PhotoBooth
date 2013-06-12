@@ -133,7 +133,7 @@ class Texture:
 			self.w = img.get_width()
 			### for some reason we need to flip surface
 			mirrored = pygame.transform.flip(img, True, False)
-			texture_data = glesutils.TextureData.from_surface(mirrored)
+			texture_data = glesutils.TextureData.from_surface(mirrored.convert_alpha())
 		elif type(img) == np.ndarray:
 			self.w = img.shape[0]
 			self.h = img.shape[1]
@@ -141,6 +141,8 @@ class Texture:
 			texture_data = glesutils.TextureData(img.ctypes.data, img.shape[0], img.shape[1], format)
 		else:
 			raise Exception("unknown type: %s" % type(img))
+
+		self.target_size = (self.w, self.h)
 
 		self.texture = glesutils.Texture.from_data(texture_data)
 
@@ -150,7 +152,9 @@ class Texture:
 		self.pos = pos
 	### cx, cy are center coordinates
 	### scale is size relative to whole window
-	def draw(self):
+	def draw(self, ts=None, pos=None):
+		ts = ts if ts else self.target_size
+		pos = pos if pos else self.pos
 		### a scale value of 2 covers whole window
 		sx = 2.0
 		sy = 2.0
@@ -158,13 +162,13 @@ class Texture:
 		tx = 0
 		ty = 0
 
-		if self.target_size:
-			sx *= float(self.target_size[0])/float(self.booth.width)
-			sy *= float(self.target_size[1])/float(self.booth.height)
+		if ts:
+			sx *= float(ts[0])/float(self.booth.width)
+			sy *= float(ts[1])/float(self.booth.height)
 
-		if self.pos:
-			tx = (2.0*float(self.pos[0])/float(self.booth.width))-1.0
-			ty = (2.0*float(self.pos[1])/float(self.booth.height))-1.0
+		if pos:
+			tx = (2.0*float(pos[0])/float(self.booth.width))-1.0
+			ty = (2.0*float(pos[1])/float(self.booth.height))-1.0
 
 		Tm = transforms.translation((-0.5,-0.5,0))
 		### correct inverted texture
@@ -177,17 +181,6 @@ class Texture:
 		self.booth.program.use()
 		self.texture.bind(self.booth.program.uniform.texture.value)
 		self.booth.drawing.draw()
-
-def position_full(imgs, size):
-	full_screen_surf = pygame.Surface(size, pygame.SRCALPHA, 32)
-	if type(imgs) == tuple:
-		imgs = [imgs]
-
-	for (surf, pos) in imgs:
-		px = int(pos[0] - surf.get_width()/2.0)
-		py = int(pos[1] - surf.get_height()/2.0)
-		full_screen_surf.blit(surf.convert_alpha(), (px, py))
-	return full_screen_surf
 
 class PhotoBoothGL (glesutils.GameWindow):
 	framerate = 20
@@ -242,45 +235,45 @@ class PhotoBoothGL (glesutils.GameWindow):
 
 		### cache text overlays
 		### gap above and beloy images
-		gap = int((self.height - (self.width/1.5))/4)
+		self.gap = gap = int((self.height - (self.width/1.5))/4)
 
  		font_file = "%s/font.ttf" % os.path.dirname(os.path.realpath(__file__))
 		numfont = pygame.font.Font(font_file, 200)
 		info_font = pygame.font.Font(font_file, 60)
+		med_info_font = pygame.font.Font(font_file, 40)
 
 		### count down numbers
 		self.cd = []
 		for i in range(4):
 			surf = numfont.render("%d" % (i), 0, green, pink)
-			text = info_font.render("* LOOK AT CAMERA *", 0, pink, green)
-			pos = (self.width/2, self.height/2)
-			self.cd.append(Texture(position_full([
-				(surf, pos),
-				(text, (self.width/2, self.height - gap)),
-				(text, (self.width/2, gap)),
-			],
-			self.scrsize()), self))
+			texture = Texture(surf, self)
+			self.cd.append(texture)
 		
-		### cache info texts		
+		### cache info texts
+		s_left_button = med_info_font.render("LEFT BUTTON TAKES 1 PHOTO", 0, pink, green)
+		self.text_left_button = Texture(s_left_button, self)
+		s_right_button = med_info_font.render("RIGHT BUTTON TAKES 4 PHOTOS", 0, pink, green)
+		self.text_right_button = Texture(s_right_button, self)
+
+		s_text_look = info_font.render("* LOOK AT CAMERA *", 0, pink, green)
+		self.text_look = Texture(s_text_look, self)
+		self.text_look.set_target_size(s_text_look.get_width(), s_text_look.get_height())
+
 		surf_text_press_button = info_font.render(
 			"* PRESS BUTTON TO EXIT *", 
 			0, green, pink)
-		self.text_press_button = Texture(
-			position_full([(surf_text_press_button, (self.width/2, self.height-gap))], (self.width, self.height)), self)
+		self.text_press_button = Texture(surf_text_press_button, self)
 
 		small_info_font = pygame.font.Font(font_file, 25)
 		surf_text_website = small_info_font.render(
 			"PHOTOS ONLINE @ HTTP://EMMAISGOINGTOMARRY.ME BY 1ST OF JULY", 
 			0, green, pink)
-		self.text_website = Texture(
-			position_full((surf_text_website, (self.width/2, gap)), self.scrsize()), self)
+		self.text_website = Texture(surf_text_website, self)
 
 		surf_text_taking = info_font.render(
 			"TAKING PHOTOS", 
 			0, green, pink)
-		self.text_taking = Texture(
-			position_full((surf_text_taking, (self.width/2, self.height/2)), self.scrsize()), self)
-
+		self.text_taking = Texture(surf_text_taking, self)
 
 		### create Snappy object with preview disabled
 		self.snappy = Snappy()
@@ -328,6 +321,10 @@ class PhotoBoothGL (glesutils.GameWindow):
 		if self.preview_texture != None:
 			self.preview_texture.draw()
 
+		if self.count_down == 0 and self.to_take == 0:
+			self.text_left_button.draw(pos=(self.width/2, self.gap))
+			self.text_right_button.draw(pos=(self.width/2, self.height - self.gap))
+
 		### draw the count down timer
 		if self.count_down > 0:
 			### reset taken count
@@ -342,7 +339,12 @@ class PhotoBoothGL (glesutils.GameWindow):
 			remaining = self.count_down - te
 			#print "counting down: %2.3f" % remaining
 			count_value = int(math.ceil(remaining))
-			self.cd[count_value].draw()
+			self.cd[count_value].draw(pos=None, ts=None)
+
+			### draw LOOK AT CAMERA texture on top and bottom of screen
+			self.text_look.draw(pos=(self.width/2, self.height - self.gap))
+			self.text_look.draw(pos=(self.width/2, self.gap))
+
 			if remaining > 0:
 				return True
 			### reset count down
@@ -393,9 +395,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 				img = self.snappy.get_resized(name, folder, t_w, t_h)
 				imgs = pygame.image.frombuffer(np.getbuffer(img),
 					 (img.shape[0], img.shape[1]), 'RGB')
-
-				img_surf = position_full((imgs, pos), self.scrsize())
-				pic_texture = Texture(img_surf, self)
+				pic_texture = Texture(imgs, self)
 
 			self.photos.append(pic_texture)
 
@@ -407,8 +407,8 @@ class PhotoBoothGL (glesutils.GameWindow):
 
 			if self.taken == self.to_take:
 				### blit info text
-				self.text_website.draw()
-				self.text_press_button.draw()
+				self.text_website.draw(pos=(self.width/2, self.gap))
+				self.text_press_button.draw(pos=(self.width/2, self.height-self.gap))
 				self.swap_buffers()
 				while not self.one_photo_button() and not self.multi_photo_button() and not self.exit_button():
 					self.clear_button_events()
