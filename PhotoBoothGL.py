@@ -66,9 +66,9 @@ class Snappy(threading.Thread):
 			### always sleep a little
 			time.sleep(0.05)
 	def get_preview(self):
-		#while self.preview_queue.qsize() > 1:
-		#	print "Queue size: %d" % self.preview_queue.qsize()
-		#	self.preview_queue.get(True, 3)
+		### get only the most recent
+		while self.preview_queue.qsize() > 1:
+			self.preview_queue.get(True, 3)
 		return self.preview_queue.get(True, 3)
 	def preview_available(self):
 		return True if self.preview_queue.qsize() > 0 else False
