@@ -26,16 +26,9 @@ Snapper::Snapper() :
 	camera(NULL),
 	context(NULL),
 	retries(5) {
-	gphoto(gp_camera_new (&camera));
-	context = gp_context_new();
 
-	int ret = gp_camera_init(camera, context);
-	if (ret < GP_OK) {
-	 printf("No camera auto detected.\n");
-	 gp_camera_free(camera);
-	 camera = NULL;
-	 return;
-	}
+	if(!connect())
+		return;
 
 #ifdef RPI
 	pLogger = new Logger();
@@ -56,23 +49,6 @@ bool Snapper::valid() {
 	return camera ? true : false;
 }
 
-// create a file on the camera with string as its contents
-// save to folder/path
-void Snapper::uploadFile(char *name, const char *folder, char *string) {
-	CameraFile *file;
-	gphoto(gp_file_new(&file));
-
-	// append the data from string into the file
-	gphoto(gp_file_append(file, string, strlen(string)));
-	printf("appended\n");
-	// upload the file
-	//#gphoto(gp_camera_folder_put_file(camera, folder, name, GP_FILE_TYPE_NORMAL, file, context));
-	gphoto(gp_filesystem_put_file(camera->fs, folder, name, GP_FILE_TYPE_NORMAL, file, context));
-	printf("uploaded %s to %s\n", name, folder);
-	// free the file
-	gphoto(gp_file_unref(file));
-}
-
 void Snapper::setTargetCard() {
 	CameraWidget *rootwidget, *mainwidget, *settingswidget, *capturetargetwidget; 
     gphoto(gp_camera_get_config(camera, &rootwidget, NULL)); 
@@ -91,6 +67,8 @@ void Snapper::setTargetCard() {
 
 /* download a photo from camera */
 void Snapper::downloadPicture(char *name, char *folder, char **out, unsigned int *out_size) {
+	connect();
+
 	CameraFile *download_file;
 
 	gphoto(gp_file_new(&download_file));
@@ -109,6 +87,7 @@ void Snapper::downloadPicture(char *name, char *folder, char **out, unsigned int
 
 void Snapper::downloadResizePicture(char *name, char *folder, 
 	unsigned int *size, char **pic, Epeg_Image **img) {
+	connect();
 
 	CameraFile *download_file;
 
@@ -133,6 +112,8 @@ void Snapper::downloadResizePicture(char *name, char *folder,
 }
 
 void Snapper::takePicture(char *name, char *folder, unsigned int *size) {
+	connect();
+
 	setTargetCard();
 
     CameraFilePath fpath;
@@ -158,6 +139,7 @@ void Snapper::decodeJPEG(const char *jpeg_data, unsigned long int jpeg_len, char
 
 	if(jpeg->decode(jpeg_data, jpeg_len, out, &im_w, &im_h)) {
 		printf("there was an error decoding the jpeg\n");
+		*out = NULL;
 	}
 
 	size[0] = im_w;
@@ -208,6 +190,8 @@ void Snapper::decodeJPEG(const char *jpeg_data, unsigned long int jpeg_len, char
 }
 
 void Snapper::capturePreview(char **out, unsigned int *size) {
+	connect();
+
 	const char* preview_data;
 	unsigned long int preview_size;
 
@@ -229,6 +213,34 @@ void Snapper::capturePreview(char **out, unsigned int *size) {
 	decodeJPEG(preview_data, preview_size, out, size);
 
 	gp_file_unref(preview_file);
+}
+
+int Snapper::connect() {
+	if(camera && context)
+		return 1;
+
+	gphoto(gp_camera_new (&camera));
+	context = gp_context_new();
+
+	int ret = gp_camera_init(camera, context);
+	if (ret < GP_OK) {
+	 printf("No camera auto detected.\n");
+	 gp_camera_free(camera);
+	 camera = NULL;
+	 return 0;
+	}
+
+	return 1;
+}
+
+void Snapper::disconnect() {
+	if(camera)
+		gp_camera_unref(camera);
+	if(context)
+		gp_context_unref(context);
+
+	camera = NULL;
+	context = NULL;
 }
 
 

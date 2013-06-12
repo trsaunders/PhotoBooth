@@ -22,6 +22,10 @@ class Snappy(threading.Thread):
 	picture_resize_out = None
 
 	preview_sem = None
+
+	action = None
+	(DISCONNECT) = (0)
+
 	def __init__(self):
 		while True:
 			try:
@@ -38,6 +42,9 @@ class Snappy(threading.Thread):
 
 		self.picture_resize = Queue.Queue()
 		self.picture_resize_out = Queue.Queue()
+
+		self.action = Queue.Queue()
+		self.action_out = Queue.Queue()
 
 		self.preview_sem = threading.Semaphore()
 
@@ -58,6 +65,16 @@ class Snappy(threading.Thread):
 				elif len(r) == 2:
 					img = self.snap.downloadPicture(r[0], r[1])
 				self.picture_resize_out.put(img)
+
+			if self.action.qsize() > 0:
+				action = self.action.get()
+				res = False
+
+				if action == Snappy.DISCONNECT:
+					self.snap.disconnect()
+					res = True
+
+				self.action_out.put(res)
 
 			if self.preview_sem.acquire(blocking=False):
 				img = self.snap.capturePreview()
@@ -88,6 +105,10 @@ class Snappy(threading.Thread):
 			self.preview_queue.queue.clear()
 	def enable_preview(self):
 		self.preview_sem.release()
+	def disconnect(self):
+		self.action.put(Snappy.DISCONNECT)
+		return self.action_out.get()
+
 
 
 # A GLSL (GL Shading Language)  program consists of at least two shaders:
@@ -198,6 +219,14 @@ class PhotoBoothGL (glesutils.GameWindow):
 
 	pic_log = None
 
+	last_action = time.time()
+
+	disabled = False
+
+	one_photo_button_pressed = False
+	multi_photo_button_pressed = False
+	exit_button_pressed = False
+
 	def scrsize(self):
 		return (self.width, self.height)
 	def init(self):
@@ -237,7 +266,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 		### gap above and beloy images
 		self.gap = gap = int((self.height - (self.width/1.5))/4)
 
- 		font_file = "%s/font.ttf" % os.path.dirname(os.path.realpath(__file__))
+		font_file = "%s/font.ttf" % os.path.dirname(os.path.realpath(__file__))
 		numfont = pygame.font.Font(font_file, 200)
 		info_font = pygame.font.Font(font_file, 60)
 		med_info_font = pygame.font.Font(font_file, 54)
@@ -258,6 +287,9 @@ class PhotoBoothGL (glesutils.GameWindow):
 		s_text_look = info_font.render("* LOOK AT CAMERA *", 0, pink, green)
 		self.text_look = Texture(s_text_look, self)
 		self.text_look.set_target_size(s_text_look.get_width(), s_text_look.get_height())
+
+		s_text_wake = info_font.render("* PRESS BUTTON TO WAKE *", 0, pink, green)
+		self.text_wake = Texture(s_text_wake, self)
 
 		surf_text_press_button = info_font.render(
 			"* PRESS BUTTON TO EXIT *", 
@@ -283,47 +315,78 @@ class PhotoBoothGL (glesutils.GameWindow):
 		### enable the preview
 		self.snappy.enable_preview()
 
+	def on_keydown(self, event):
+		if event.key == pygame.K_ESCAPE:
+			self.exit_button_pressed = True
+		if event.key == pygame.K_SPACE:
+			self.one_photo_button_pressed = True
+		if event.key == pygame.K_RETURN:
+			self.multi_photo_button_pressed = True
 
-	def get_button(self, button):
-		if self.button_events == None:
-			self.button_events = pygame.event.get()
-			if len(self.button_events) == 0:
-				self.button_events = None
-				return False
-
-		for event in self.button_events:
-			if event.type == pygame.KEYDOWN and event.key == button:
-				return True
-		return False
 	### reset cached button events
 	### called after handling a button event
 	def clear_button_events(self):
-		self.button_events = None
+		event = pygame.event.poll()
+		if event.type != pygame.NOEVENT:
+			self.on_event(event)
 	def one_photo_button(self):
-		return self.get_button(pygame.K_SPACE)
+		if self.one_photo_button_pressed:
+			self.one_photo_button_pressed = False
+			return True
+		return False
+
 	def multi_photo_button(self):
-		return self.get_button(pygame.K_RETURN)
+		if self.multi_photo_button_pressed:
+			self.multi_photo_button_pressed = False
+			return True
+		return False
+
 	def exit_button(self):
-		return self.get_button(pygame.K_ESCAPE)
+		if self.exit_button_pressed:
+			self.exit_button_pressed = False
+			return True
+		return False
 
 	def loop(self):
-		#print "to take: %d taken: %d count down: %d" % (self.to_take, self.taken, self.count_down)
+		if self.count_down == 0 and self.to_take == 0:
+			if not self.last_action or (time.time() - self.last_action) < 20:
+				self.text_left_button.draw(pos=(self.width/2, self.gap))
+				self.text_right_button.draw(pos=(self.width/2, self.height - self.gap))
+			else:
+				### assume no user
+				self.text_wake.draw()
+
+				if self.one_photo_button() or self.multi_photo_button():
+					self.last_action = time.time()
+					self.disabled = False
+					self.snappy.enable_preview()
+				elif self.exit_button():
+					return False
+				elif not self.disabled:
+					### disconnect camera
+					self.disabled = True
+					self.snappy.disable_preview()
+					self.snappy.disconnect()
+
+				self.clear_button_events()
+				time.sleep(0.5)
+				return True
+
 		if self.snappy.preview_available():
 			try:
 				img = self.snappy.get_preview()
 			except queue.Empty:
 				print "queue empty"
 				return False
+			except:
+				print "Frame failed, skipping"
+				return True
 
 			self.preview_texture = Texture(img, self)
 			self.preview_texture.set_target_size(self.width, self.width/1.5)
 
 		if self.preview_texture != None:
 			self.preview_texture.draw()
-
-		if self.count_down == 0 and self.to_take == 0:
-			self.text_left_button.draw(pos=(self.width/2, self.gap))
-			self.text_right_button.draw(pos=(self.width/2, self.height - self.gap))
 
 		### draw the count down timer
 		if self.count_down > 0:
@@ -406,6 +469,10 @@ class PhotoBoothGL (glesutils.GameWindow):
 			self.taken += 1
 
 			if self.taken == self.to_take:
+				### finished!
+				### disconnect camera at this point
+				self.snappy.disconnect()
+
 				### blit info text
 				self.text_website.draw(pos=(self.width/2, self.gap))
 				self.text_press_button.draw(pos=(self.width/2, self.height-self.gap))
@@ -427,6 +494,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 		ob = self.one_photo_button()
 		mb = self.multi_photo_button()
 		if ob or mb:
+			self.last_action = time.time()
 			self.count_down = 3
 			self.count_start = time.time()
 

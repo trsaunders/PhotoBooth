@@ -27,11 +27,11 @@ cdef extern from "Snapper.h" namespace "SuperBooth":
         Snapper()
         bool valid()
         decodeJPEG(const char *, unsigned long int, char **, unsigned int *)
-        void uploadFile(char *, const char *, char *)
         void downloadPicture(char *, char *, char **, unsigned int *)
         void downloadResizePicture(char *, char *, unsigned int *, char **, Epeg_Image**)
         void takePicture(char *, char *, unsigned int*)
         void capturePreview(char **, unsigned int *)
+        void disconnect()
 
 cdef class bufferWrapper:
     cdef void* data_ptr
@@ -132,13 +132,9 @@ cdef class PySnapper:
     def __dealloc__(self):
         del self.snapper
 
-    ### Note: doesnt work on canon 50D so untested
-    def uploadFile(self, py_name, py_folder, py_contents):
-        cdef char *name = py_name
-        cdef char *folder = py_folder
-        cdef char *contents = py_contents
-        self.snapper.uploadFile(name, folder, contents)
-
+    def disconnect(self):
+        self.snapper.disconnect()
+        
     def takePicture(self):
         cdef char name[128]
         cdef char folder[1024]
@@ -195,6 +191,10 @@ cdef class PySnapper:
         cdef char *out
 
         self.snapper.capturePreview(&out, size)
+
+        if out == NULL:
+            raise Exception("Failed to decode")
+            return 1
 
         cdef np.ndarray ndarray
         array_wrapper = ArrayWrapper()

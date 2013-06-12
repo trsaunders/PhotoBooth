@@ -22,6 +22,7 @@ namespace SuperBooth {
 		GPContext *context;
 		unsigned char retries;
 		unsigned int im_h, im_w;
+
 #ifdef RPI
 		JPEG *jpeg;
 		Logger *pLogger;
@@ -29,8 +30,9 @@ namespace SuperBooth {
 	public:
 		Snapper();
 		~Snapper();
+		int connect();
+		void disconnect();
 		bool valid();
-		void uploadFile(char *name, const char *folder, char *string);
 		void downloadPicture(char *, char *, char **, unsigned int *);
 		void downloadResizePicture(char *name, char *folder, unsigned int *size, char **pic, Epeg_Image **img);
 		void setTargetCard();

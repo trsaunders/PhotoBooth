@@ -94,6 +94,7 @@ int JPEG::init() {
 		portdef.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
 		portdef.nVersion.nVersion = OMX_VERSION;
 		portdef.nPortIndex = m_iInPortDecode;
+		portdef.nBufferSize = 400000;
 		m_pCompDecode->GetParameter(OMX_IndexParamPortDefinition, &portdef);
 
 		// enable input port
