@@ -5,7 +5,7 @@ from rpigl.gles2 import *
 import threading
 import Queue
 import time
-import os
+import os, os.path
 import SuperBooth
 import math
 import numpy as np
@@ -238,7 +238,8 @@ class PhotoBoothGL (glesutils.GameWindow):
 
 	def start(self):
 		dt = str(datetime.datetime.now())
-		self.pic_log = open("pictures_%s.txt" % dt, 'w')
+		script_path = os.path.dirname(os.path.realpath(__file__))
+		self.pic_log = open("%s/pictures_%s.txt" % (script_path, dt), 'w')
 		#pygame.mouse.set_visible(False)
 		# compile vertex and fragment shaders
 		vertex_shader = glesutils.VertexShader(vertex_glsl)
