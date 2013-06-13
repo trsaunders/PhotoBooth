@@ -483,6 +483,8 @@ class PhotoBoothGL (glesutils.GameWindow):
 				while not self.one_photo_button() and not self.multi_photo_button() and not self.exit_button():
 					self.clear_button_events()
 
+				self.last_action = time.time()
+				
 				### clear again
 				self.clear_button_events()
 
