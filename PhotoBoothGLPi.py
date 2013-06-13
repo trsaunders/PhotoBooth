@@ -28,24 +28,33 @@ class PhotoBoothGLPi(PhotoBoothGL):
 			return True
 		return False
 	def clear_button_events(self):
-		global last_button
-		last_button = time.time()
+		#global last_button
+		#last_button = time.time()
 		return
 
 	def left_button_pressed(self):
-		self.left_button_queue.put(True)
+		#with self.left_button_queue.mutex:
+		if self.left_button_queue.qsize() == 0:
+			self.left_button_queue.put(True)
 
 	def right_button_pressed(self):
-		self.right_button_queue.put(True)
+		#with self.right_button_queue.mutex:
+		if self.right_button_queue.qsize() == 0:
+			self.right_button_queue.put(True)
 
 	def one_photo_button(self):
 		if self.left_button_queue.qsize() > 0:
-			return self.left_button_queue.get()
+			### empty the queue
+			while self.left_button_queue.qsize() > 0:
+				self.left_button_queue.get()
+			return True
 
 		return False
 	def multi_photo_button(self):
  		if self.right_button_queue.qsize() > 0:
- 			return self.right_button_queue.get()
+ 			while self.right_button_queue.qsize() > 0:
+ 				self.right_button_queue.get()
+ 			return True
  		return False
  	def exit_button(self):
  		return False
@@ -64,17 +73,20 @@ def button_callback(channel):
 	last_button = time.time()
 
 	if channel == 4:
+		print "left button"
 		booth.left_button_pressed()
 	elif channel == 17:
+		print "right button"
 		booth.right_button_pressed()
 
 if __name__ == "__main__":
+	print "Starting RPi photobooth"
 	GPIO.setmode(GPIO.BCM)
 
 	GPIO.setup(4, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-	GPIO.add_event_detect(4, GPIO.RISING, callback=button_callback)
+	GPIO.add_event_detect(4, GPIO.RISING, callback=button_callback, bouncetime=200)
 	GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-	GPIO.add_event_detect(17, GPIO.RISING, callback=button_callback)
+	GPIO.add_event_detect(17, GPIO.RISING, callback=button_callback, bouncetime=200)
 
 	booth = PhotoBoothGLPi(1280, 1024)
 	booth.run()

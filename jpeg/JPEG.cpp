@@ -414,8 +414,13 @@ void JPEG::OnDecoderOutputChanged()
 	// change output color format and dimensions to match input
 	portdef.format.image.eCompressionFormat = OMX_IMAGE_CodingUnused;
 	portdef.format.image.eColorFormat = OMX_COLOR_Format32bitABGR8888;
+#if 0
 	portdef.format.image.nFrameWidth = uWidth;
 	portdef.format.image.nFrameHeight = uHeight;
+#else
+	portdef.format.image.nFrameWidth = (uWidth < 1280) ? uWidth : 1280;
+	portdef.format.image.nFrameHeight = (uHeight < 1024) ? uHeight : 1024;
+#endif
 	portdef.format.image.nStride = 0;
 	portdef.format.image.nSliceHeight = 0;
 	portdef.format.image.bFlagErrorConcealment = OMX_FALSE;

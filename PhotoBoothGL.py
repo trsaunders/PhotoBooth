@@ -77,8 +77,12 @@ class Snappy(threading.Thread):
 				self.action_out.put(res)
 
 			if self.preview_sem.acquire(blocking=False):
-				img = self.snap.capturePreview()
-				self.preview_queue.put(img)
+				try:
+					img = self.snap.capturePreview()
+				except:
+					print "error capturing preview"
+				else:
+					self.preview_queue.put(img)
 				self.preview_sem.release()
 			### always sleep a little
 			time.sleep(0.05)
