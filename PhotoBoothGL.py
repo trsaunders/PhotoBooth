@@ -319,6 +319,8 @@ class PhotoBoothGL (glesutils.GameWindow):
 		### enable the preview
 		self.snappy.enable_preview()
 
+		self.last_action = time.time()
+
 	def on_keydown(self, event):
 		if event.key == pygame.K_ESCAPE:
 			self.exit_button_pressed = True
@@ -484,7 +486,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 					self.clear_button_events()
 
 				self.last_action = time.time()
-				
+
 				### clear again
 				self.clear_button_events()
 
