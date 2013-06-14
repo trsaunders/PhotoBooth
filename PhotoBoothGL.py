@@ -22,6 +22,7 @@ class Snappy(threading.Thread):
 	picture_resize_out = None
 
 	preview_sem = None
+	disabled = False
 
 	action = None
 	(DISCONNECT) = (0)
@@ -103,11 +104,21 @@ class Snappy(threading.Thread):
 		self.picture_resize.put((name, folder))
 		return self.picture_resize_out.get()
 	def disable_preview(self):
+		if self.disabled:
+			return
+
+		self.disabled = True
+
 		self.preview_sem.acquire(blocking=True)
 		### clear any remaining frames
 		with self.preview_queue.mutex:
 			self.preview_queue.queue.clear()
 	def enable_preview(self):
+		if not self.disabled:
+			return
+
+		self.disabled = False
+
 		self.preview_sem.release()
 	def disconnect(self):
 		self.action.put(Snappy.DISCONNECT)
@@ -420,6 +431,9 @@ class PhotoBoothGL (glesutils.GameWindow):
 			self.count_down = 0
 			### disable live preview
 			self.snappy.disable_preview()
+			### disconnect to make AF work
+			self.snappy.disconnect()
+			
 			### set background to pink
 			glClearColor(pink[0]/255.0, pink[1]/255.0, pink[2]/255.0, 1)
 			self.swap_buffers()
