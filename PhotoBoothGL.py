@@ -242,6 +242,9 @@ class PhotoBoothGL (glesutils.GameWindow):
 	multi_photo_button_pressed = False
 	exit_button_pressed = False
 
+	preview_time = time.time()
+	delay_take_time = 3
+
 	def scrsize(self):
 		return (self.width, self.height)
 	def init(self):
@@ -368,8 +371,9 @@ class PhotoBoothGL (glesutils.GameWindow):
 	def loop(self):
 		if self.count_down == 0 and self.to_take == 0:
 			if not self.last_action or (time.time() - self.last_action) < 120:
-				self.text_left_button.draw(pos=(self.width/2, self.gap))
-				self.text_right_button.draw(pos=(self.width/2, self.height - self.gap))
+				if (time.time() - self.preview_time) >= self.delay_take_time:
+					self.text_left_button.draw(pos=(self.width/2, self.gap))
+					self.text_right_button.draw(pos=(self.width/2, self.height - self.gap))
 			else:
 				### assume no user
 				self.text_wake.draw()
@@ -433,7 +437,7 @@ class PhotoBoothGL (glesutils.GameWindow):
 			self.snappy.disable_preview()
 			### disconnect to make AF work
 			self.snappy.disconnect()
-			
+
 			### set background to pink
 			glClearColor(pink[0]/255.0, pink[1]/255.0, pink[2]/255.0, 1)
 			self.swap_buffers()
@@ -513,8 +517,16 @@ class PhotoBoothGL (glesutils.GameWindow):
 				self.taken = 0
 
 				self.snappy.enable_preview()
+				self.preview_time = time.time()
+
 		ob = self.one_photo_button()
 		mb = self.multi_photo_button()
+
+		### don't respond to button presses within 3 seconds of closing last picture
+		if self.preview_time and (time.time() - self.preview_time) < self.delay_take_time:
+			self.clear_button_events()
+			return True
+
 		if ob or mb:
 			self.last_action = time.time()
 			self.count_down = 3
