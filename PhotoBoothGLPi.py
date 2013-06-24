@@ -35,12 +35,12 @@ class PhotoBoothGLPi(PhotoBoothGL):
 	def left_button_pressed(self):
 		#with self.left_button_queue.mutex:
 		if self.left_button_queue.qsize() == 0:
-			self.left_button_queue.put(True)
+			self.left_button_queue.put(time.time())
 
 	def right_button_pressed(self):
 		#with self.right_button_queue.mutex:
 		if self.right_button_queue.qsize() == 0:
-			self.right_button_queue.put(True)
+			self.right_button_queue.put(time.time())
 
 	def one_photo_button(self):
 		if self.left_button_queue.qsize() > 0:
@@ -84,9 +84,9 @@ if __name__ == "__main__":
 	GPIO.setmode(GPIO.BCM)
 
 	GPIO.setup(4, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-	GPIO.add_event_detect(4, GPIO.RISING, callback=button_callback, bouncetime=200)
+	GPIO.add_event_detect(4, GPIO.RISING, callback=button_callback)
 	GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-	GPIO.add_event_detect(17, GPIO.RISING, callback=button_callback, bouncetime=200)
+	GPIO.add_event_detect(17, GPIO.RISING, callback=button_callback)
 
 	booth = PhotoBoothGLPi(1280, 1024)
 	booth.run()
